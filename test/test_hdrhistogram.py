@@ -39,6 +39,9 @@ from ctypes import string_at
 
 import pytest
 
+from hypothesis import given, strategies
+import numpy
+
 from pyhdrh import add_array
 from pyhdrh import encode
 from pyhdrh import decode
@@ -118,6 +121,47 @@ def test_scaled_highest_equiv_value():
     assert histogram.get_highest_equivalent_value(9995) == 9999
     assert histogram.get_highest_equivalent_value(10007) == 10007
     assert histogram.get_highest_equivalent_value(10008) == 10015
+
+@given(
+    data=strategies.data(),
+    significant_figures=strategies.integers(min_value=1, max_value=5),
+    bounds=strategies.tuples(
+        strategies.integers(min_value=1),
+        strategies.integers(min_value=1),
+    ).map(sorted),
+)
+def test_via_hypothesis(data, bounds, significant_figures):
+    """
+    An HdrHistogram is accurate across its bounds within 1e(-sigfigs).
+    """
+
+    lowest_trackable_value, highest_trackable_value = bounds
+    histogram = HdrHistogram(
+        lowest_trackable_value=lowest_trackable_value,
+        highest_trackable_value=highest_trackable_value,
+        significant_figures=significant_figures,
+    )
+
+    values = data.draw(
+        strategies.lists(
+            strategies.integers(
+                min_value=lowest_trackable_value,
+                max_value=highest_trackable_value,
+            ),
+            min_size=1,
+        ),
+    )
+    for value in values:
+        histogram.record_value(value)
+
+    percentile = data.draw(strategies.floats(min_value=0, max_value=100))
+
+    got = histogram.get_value_at_percentile(percentile)
+    actual = numpy.percentile(values, percentile)
+    relative_error = 1 - (got / actual)
+
+    variation = pow(10, -significant_figures)
+    assert relative_error < variation
 
 def load_histogram():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
