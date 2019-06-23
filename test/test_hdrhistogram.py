@@ -124,18 +124,17 @@ def test_scaled_highest_equiv_value():
 
 @given(
     data=strategies.data(),
+    lowest_trackable_value=strategies.integers(min_value=1),
     significant_figures=strategies.integers(min_value=1, max_value=5),
-    bounds=strategies.tuples(
-        strategies.integers(min_value=1),
-        strategies.integers(min_value=1),
-    ).map(sorted),
 )
-def test_via_hypothesis(data, bounds, significant_figures):
+def test_via_hypothesis(data, lowest_trackable_value, significant_figures):
     """
     An HdrHistogram is accurate across its bounds within 1e(-sigfigs).
     """
 
-    lowest_trackable_value, highest_trackable_value = bounds
+    highest_trackable_value = lowest_trackable_value + data.draw(
+        strategies.integers(min_value=1),
+    )
     histogram = HdrHistogram(
         lowest_trackable_value=lowest_trackable_value,
         highest_trackable_value=highest_trackable_value,
